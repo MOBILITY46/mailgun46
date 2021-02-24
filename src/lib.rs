@@ -1,11 +1,34 @@
+//! ```
+//!
+//! use mailgun46::{Mailer, EmailBuilder};
+//! use anyhow::Result;
+//! // Setup a new client from env.
+//! // The <from> header will be noreply@domain.
+//! # async fn example() -> Result<()> {
+//! let client = Mailer::from_env()?;
+//! EmailBuilder::default()
+//!   .to("somethingparseableasanemail")
+//!   .subject("An email")
+//!   .text_body("A plain, informative text body")
+//!   .build()?
+//!   .send(&client).await?;
+//! # Ok(())
+//! # }
+//! ```
 use std::env;
 
+mod email;
 mod error;
 
-pub use error::{SendError, SetupError};
+pub use {
+    email::{Email, EmailBody, EmailBuilder},
+    error::{BuildError, SendError, SetupError},
+};
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+static MG_BASE_URL: &str = "https://api.eu.mailgun.net";
 
+#[derive(Debug)]
 pub struct Mailer {
     from: String,
     messages_url: reqwest::Url,
@@ -16,6 +39,13 @@ pub struct Mailer {
 pub struct MessageId(String);
 
 impl Mailer {
+    /// Creates a new Mailer by reading from Environment variables:
+    /// * `MAILER46_DOMAIN`: The domain to send from.
+    /// * `MAILER46_TOKEN`: The raw token received from Mailgun.
+    ///
+    /// Uses base url to mailgun: `https://api.eu.mailgun.net`
+    ///
+    ///
     pub fn from_env() -> Result<Self, SetupError> {
         let domain = env::var("MAILER46_DOMAIN")
             .map_err(|_| SetupError::EnvVarMissing("MAILER46_DOMAIN"))?;
@@ -26,12 +56,21 @@ impl Mailer {
     }
 
     /// Creates a new client operating against the given domain.
-    /// Notice that the token must be the one provided by Mailgun, __NOT__ the
-    /// base64 encoded api:<your token>.
+    /// Notice that the token must be the one provided by Mailgun, Mailer46 turns it into base64.
+    ///
+    /// Uses base url to mailgun: `https://api.eu.mailgun.net`
     pub fn new(domain: impl AsRef<str>, token: impl AsRef<str>) -> Result<Self, SetupError> {
+        Self::new_with_mg_url(MG_BASE_URL, domain, token)
+    }
+
+    pub fn new_with_mg_url(
+        mg_url: impl AsRef<str>,
+        domain: impl AsRef<str>,
+        token: impl AsRef<str>,
+    ) -> Result<Self, SetupError> {
         let from = format!("noreply@{}", domain.as_ref());
 
-        let messages_url = format!("https://api.eu.mailgun.net/v3/{}/messages", domain.as_ref())
+        let messages_url = format!("{}/v3/{}/messages", mg_url.as_ref(), domain.as_ref())
             .parse::<reqwest::Url>()
             .map_err(|err| SetupError::InvalidVar("domain", err.to_string()))?;
 
@@ -55,18 +94,7 @@ impl Mailer {
         })
     }
 
-    async fn send(&self, b: EmailBuilder) -> Result<MessageId, SendError> {
-        if b.recipients.is_empty() {
-            return Err(SendError::MissingField("to"));
-        }
-
-        let email = Email {
-            from: self.from.clone(),
-            to: b.recipients.join(","),
-            subject: b.subject.unwrap_or_else(|| "no subject".into()),
-            body: b.body,
-        };
-
+    async fn send(&self, email: Email) -> Result<MessageId, SendError> {
         let res = self
             .client
             .post(self.messages_url.clone())
@@ -82,109 +110,99 @@ impl Mailer {
             return Err(SendError::Non200Reply(status));
         }
 
-        let reply = res.json::<MailReply>().await?;
+        let body_bs = res.bytes().await?;
+        let body = String::from_utf8_lossy(&body_bs);
+        println!("Body: {}", body);
+
+        // let reply = res.json::<MailReply>().await?;
+        let reply = serde_json::from_str::<MailReply>(&body).unwrap();
 
         Ok(MessageId(reply.id))
     }
 }
 
 #[derive(serde::Deserialize)]
-struct MailReply {
+pub(crate) struct MailReply {
     id: String,
-    message: String,
-}
-
-#[derive(serde::Deserialize)]
-struct MailErrorReply {
-    message: String,
-}
-
-#[derive(serde::Serialize)]
-pub struct Email {
-    from: String,
-    to: String,
-    subject: String,
-
-    #[serde(flatten)]
-    body: Option<Body>,
-}
-
-impl Email {
-    pub fn build() -> EmailBuilder {
-        EmailBuilder::default()
-    }
-}
-
-#[derive(Debug, serde::Serialize)]
-enum Body {
-    #[serde(rename = "html")]
-    Html(String),
-    #[serde(rename = "text")]
-    Text(String),
-}
-
-#[derive(Debug, Default)]
-pub struct EmailBuilder {
-    recipients: Vec<String>,
-    subject: Option<String>,
-    body: Option<Body>,
-}
-
-impl EmailBuilder {
-    pub fn to(mut self, recipient: impl Into<String>) -> Self {
-        self.recipients.push(recipient.into());
-        self
-    }
-
-    pub fn subject(mut self, subject: impl Into<String>) -> Self {
-        self.subject = Some(subject.into());
-        self
-    }
-
-    pub fn text_body(mut self, body: impl Into<String>) -> Self {
-        self.body = Some(Body::Text(body.into()));
-        self
-    }
-
-    pub fn html_body(mut self, html: impl Into<String>) -> Self {
-        self.body = Some(Body::Html(html.into()));
-        self
-    }
-
-    pub async fn send(self, client: &Mailer) -> Result<MessageId, SendError> {
-        client.send(self).await
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use anyhow::Result;
+    use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+
+    async fn setup() -> (Mailer, MockServer) {
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/v3/fakedomain/messages"))
+            .and(matchers::header(
+                "Authorization",
+                "Basic YXBpOnRvbWF0b3Rva2Vu",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"
+{
+  "id": "<20210224131116.1.E5C867B3818DC87B@fakedomain>",
+  "message": "Queued. Thank you."
+}
+"#,
+            ))
+            .mount(&server)
+            .await;
+
+        let client = Mailer::new_with_mg_url(&server.uri(), "fakedomain", "tomatotoken")
+            .expect("Creating Mailer");
+        (client, server)
+    }
 
     #[test]
     fn serialize_email() {
         let email = Email {
-            from: String::from("niclas"),
+            from: Some(String::from("niclas")),
             to: String::from("someoneelse"),
             subject: String::from("Subject"),
-            body: Some(Body::Html(String::from("HELLO"))),
+            body: Some(EmailBody::Html(String::from("HELLO"))),
         };
 
         let json = serde_json::to_string(&email).expect("Serializing email");
 
-        assert_eq!(json, "asda");
+        assert_eq!(
+            json,
+            r#"{"from":"niclas","to":"someoneelse","subject":"Subject","html":"HELLO"}"#
+        );
     }
 
     #[tokio::test]
-    async fn send_an_email() {
-        let client = Mailer::from_env().expect("Creating client");
+    async fn send_a_test_email() -> Result<()> {
+        let (client, server) = setup().await;
+        // let client = Mailer::from_env().expect("Creating client");
 
-        let email = Email::build()
+        let res = EmailBuilder::default()
             .to("niclas@mobility46.se")
             .subject("test email!")
             .text_body("I'm a body used in a test somewhere")
+            .build()?
             .send(&client)
-            .await
-            .expect("Building email");
+            .await;
+
+        assert!(
+            res.is_ok(),
+            "Error reply: {}\nServer got following requests:\n{}",
+            res.err().unwrap(),
+            server
+                .received_requests()
+                .await
+                .map(|rqs| {
+                    rqs.iter()
+                        .map(|r| r.to_string())
+                        .collect::<Vec<String>>()
+                        .join("\n\n")
+                })
+                .unwrap_or_else(|| String::from("-"))
+        );
+
+        Ok(())
     }
 }
