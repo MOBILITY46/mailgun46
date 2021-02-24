@@ -3,17 +3,11 @@ name = "mailgun46"
 version = "0.1.0"
 authors = ["Niclas Rosengren <niclas.rosengren@gmail.com>"]
 edition = "2018"
-description = """
-# Mailgun46
-An email client using Mailgun.
-
-The domain to use for mail can be configured using env variables.
-
-* `MAILGUN46_DOMAIN`: The domain to send with.
-* `MAILGUN46_TOKEN`: The token to use, taken directly from the one retreived from Mailgun.
-"""
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+readme = "README.md"
+description = "Simple Mailgun client"
+documentation = "https://docs.rs/mailgun46"
+repository = "https://github.com/MOBILITY46/mailgun46"
 
 [dependencies]
 base64 = "0.13.0"
