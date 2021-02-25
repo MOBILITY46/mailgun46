@@ -106,16 +106,13 @@ impl Mailer {
             let status = res.status();
             let body_bs = res.bytes().await?;
             let body = String::from_utf8_lossy(&body_bs);
-            println!("Body: {}", body);
-            return Err(SendError::Non200Reply(status));
+            return Err(SendError::Non200Reply {
+                status,
+                body: body.into(),
+            });
         }
 
-        let body_bs = res.bytes().await?;
-        let body = String::from_utf8_lossy(&body_bs);
-        println!("Body: {}", body);
-
-        // let reply = res.json::<MailReply>().await?;
-        let reply = serde_json::from_str::<MailReply>(&body).unwrap();
+        let reply = res.json::<MailReply>().await?;
 
         Ok(MessageId(reply.id))
     }

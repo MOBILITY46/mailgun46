@@ -45,15 +45,22 @@ pub enum SendError {
     Http(String),
 
     /// Unexpected reply from Mailgun.
-    Non200Reply(reqwest::StatusCode),
+    Non200Reply {
+        status: reqwest::StatusCode,
+        body: String,
+    },
 }
 
 impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Http(msg) => write!(f, "SendingError http `{}`", msg),
-            Self::Non200Reply(status) => {
-                write!(f, "Got non 200 reply from mailgun: `{}`", status)
+            Self::Non200Reply { status, body } => {
+                write!(
+                    f,
+                    "Got non 200 reply from mailgun: `{}`. Body:\n{}",
+                    status, body
+                )
             }
         }
     }
