@@ -1,10 +1,9 @@
 //! ```
 //!
 //! use mailgun46::{Mailer, EmailBuilder};
-//! use anyhow::Result;
 //! // Setup a new client from env.
 //! // The <from> header will be noreply@domain.
-//! # async fn example() -> Result<()> {
+//! # async fn example() -> Result<(), Box<dyn std::error::Error + 'static>> {
 //! let client = Mailer::from_env()?;
 //! EmailBuilder::default()
 //!   .to("somethingparseableasanemail")
@@ -127,7 +126,6 @@ pub(crate) struct MailReply {
 mod tests {
 
     use super::*;
-    use anyhow::Result;
     use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
 
     async fn setup() -> (Mailer, MockServer) {
@@ -172,7 +170,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_a_test_email() -> Result<()> {
+    async fn send_a_test_email() {
         let (client, server) = setup().await;
         // let client = Mailer::from_env().expect("Creating client");
 
@@ -180,7 +178,8 @@ mod tests {
             .to("niclas@mobility46.se")
             .subject("test email!")
             .text_body("I'm a body used in a test somewhere")
-            .build()?
+            .build()
+            .expect("Building email")
             .send(&client)
             .await;
 
@@ -199,7 +198,5 @@ mod tests {
                 })
                 .unwrap_or_else(|| String::from("-"))
         );
-
-        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use crate::{BuildError, Mailer, MessageId, SendError};
 
-#[derive(serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Email {
     /// Optional, only used if set. If None the from is taken from Mailer.
     pub(crate) from: Option<String>,
@@ -17,7 +17,7 @@ impl Email {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub enum EmailBody {
     #[serde(rename = "html")]
     Html(String),
