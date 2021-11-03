@@ -53,14 +53,14 @@ impl EmailBuilder {
     }
 
     pub fn text_body(mut self, text: impl Into<String>) -> Self {
-        let mut body = self.body.unwrap_or(EmailBody::default());
+        let mut body = self.body.unwrap_or_default();
         body.text = Some(text.into());
         self.body = Some(body);
         self
     }
 
     pub fn html_body(mut self, html: impl Into<String>) -> Self {
-        let mut body = self.body.unwrap_or(EmailBody::default());
+        let mut body = self.body.unwrap_or_default();
         body.html = Some(html.into());
         self.body = Some(body);
         self
