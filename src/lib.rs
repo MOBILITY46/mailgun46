@@ -158,7 +158,8 @@ mod tests {
             .from("niclas")
             .to("someoneelse")
             .subject("Subject")
-            .html_body("<h1>Hello</h1>")
+            .html_body("<h1>HELLO</h1>")
+            .text_body("HELLO")
             .build()
             .unwrap();
 
@@ -166,7 +167,7 @@ mod tests {
 
         assert_eq!(
             json,
-            r#"{"from":"niclas","to":"someoneelse","subject":"Subject","html":"HELLO"}"#
+            r#"{"from":"niclas","to":"someoneelse","subject":"Subject","html":"<h1>HELLO</h1>","text":"HELLO"}"#
         );
     }
 
@@ -176,7 +177,7 @@ mod tests {
         // let client = Mailer::from_env().expect("Creating client");
 
         let res = EmailBuilder::default()
-            .to("niclas@mobility46.se")
+            .to("david@mobility46.se")
             .subject("test email!")
             .text_body("I'm a body used in a test somewhere")
             .build()
