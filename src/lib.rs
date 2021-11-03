@@ -154,12 +154,13 @@ mod tests {
 
     #[test]
     fn serialize_email() {
-        let email = Email {
-            from: Some(String::from("niclas")),
-            to: String::from("someoneelse"),
-            subject: String::from("Subject"),
-            body: Some(EmailBody::Html(String::from("HELLO"))),
-        };
+        let email = EmailBuilder::default()
+            .from("niclas")
+            .to("someoneelse")
+            .subject("Subject")
+            .html_body("<h1>Hello</h1>")
+            .build()
+            .unwrap();
 
         let json = serde_json::to_string(&email).expect("Serializing email");
 
