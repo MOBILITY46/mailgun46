@@ -154,18 +154,20 @@ mod tests {
 
     #[test]
     fn serialize_email() {
-        let email = Email {
-            from: Some(String::from("niclas")),
-            to: String::from("someoneelse"),
-            subject: String::from("Subject"),
-            body: Some(EmailBody::Html(String::from("HELLO"))),
-        };
+        let email = EmailBuilder::default()
+            .from("niclas")
+            .to("someoneelse")
+            .subject("Subject")
+            .html_body("<h1>HELLO</h1>")
+            .text_body("HELLO")
+            .build()
+            .unwrap();
 
         let json = serde_json::to_string(&email).expect("Serializing email");
 
         assert_eq!(
             json,
-            r#"{"from":"niclas","to":"someoneelse","subject":"Subject","html":"HELLO"}"#
+            r#"{"from":"niclas","to":"someoneelse","subject":"Subject","html":"<h1>HELLO</h1>","text":"HELLO"}"#
         );
     }
 
@@ -175,7 +177,7 @@ mod tests {
         // let client = Mailer::from_env().expect("Creating client");
 
         let res = EmailBuilder::default()
-            .to("niclas@mobility46.se")
+            .to("david@mobility46.se")
             .subject("test email!")
             .text_body("I'm a body used in a test somewhere")
             .build()

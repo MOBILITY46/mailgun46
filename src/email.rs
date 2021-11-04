@@ -17,12 +17,10 @@ impl Email {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
-pub enum EmailBody {
-    #[serde(rename = "html")]
-    Html(String),
-    #[serde(rename = "text")]
-    Text(String),
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct EmailBody {
+    html: Option<String>,
+    text: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -54,12 +52,18 @@ impl EmailBuilder {
         self
     }
 
-    pub fn text_body(self, body: impl Into<String>) -> Self {
-        self.body(EmailBody::Text(body.into()))
+    pub fn text_body(mut self, text: impl Into<String>) -> Self {
+        let mut body = self.body.unwrap_or_default();
+        body.text = Some(text.into());
+        self.body = Some(body);
+        self
     }
 
-    pub fn html_body(self, html: impl Into<String>) -> Self {
-        self.body(EmailBody::Html(html.into()))
+    pub fn html_body(mut self, html: impl Into<String>) -> Self {
+        let mut body = self.body.unwrap_or_default();
+        body.html = Some(html.into());
+        self.body = Some(body);
+        self
     }
 
     pub fn build(self) -> Result<Email, BuildError> {
