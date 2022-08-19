@@ -12,7 +12,11 @@ pub struct Email {
 }
 
 impl Email {
-    pub async fn send(self, mailer: &Mailer) -> Result<MessageId, SendError> {
+    pub async fn send(mut self, mailer: &Mailer) -> Result<MessageId, SendError> {
+        if self.from.is_none() {
+            self.from.replace(mailer.from.clone());
+        }
+
         mailer.send(self).await
     }
 }
